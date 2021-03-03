@@ -1,9 +1,6 @@
-####################
-## Setup
-####################
-
 # Libs
 library(ggplot2)
+library(ggpubr)
 
 # Global vars
 ref.bb <- "GCA_900302385.1_ASM90030238v1_genomic"
@@ -13,7 +10,7 @@ method.bwa <- "bwa"
 method.bt <- "bowtie2"
 methods <- c(method.bwa, method.bt)
 
-# 
+# Project directories
 dir.root <- "C:/Users/liaml/git/toastedfrog"
 dir.stats <- paste(dir.root, "stats", sep = "/")
 
@@ -39,10 +36,6 @@ names(sam.stats) <- files.aln.cleaned
 names.no.methods <- gsub("*.bowtie2", "", files.aln.cleaned)
 names.no.methods <- names.no.methods[-grep("bwa", names.no.methods)]
 
-####################
-## Analyze
-####################
-
 # Split the data into combinations of each method/reference
 stats.all <- sam.stats
 stats.bwa <- sam.stats[which(sam.stats %l% 3 == method.bwa)]
@@ -54,14 +47,7 @@ stats.bwa.cod <- stats.cod[which(stats.cod %l% 3 == method.bwa)]
 stats.bt.bb <- stats.bb[which(stats.bb %l% 3 == method.bt)]
 stats.bt.cod <- stats.cod[which(stats.cod %l% 3 == method.bt)]
 
-# Highest and lowest reads
-max.map.bwa <- stats.bwa[which.max(stats.bwa %l% 4)] %l% 4
-max.map.bt <- stats.bt[which.max(stats.bt %l% 4)] %l% 4
-
-min.map.bwa <- stats.bwa[which.min(stats.bwa %l% 4)] %l% 4
-min.map.bt <- stats.bt[which.min(stats.bt %l% 4)] %l% 4
-
-# Comparing %mapped between bowtie and bwa
+# Comparing %mapped between each method
 map.bt <- data.frame(unname(stats.bt %l% 4))
 map.bwa <- data.frame(unname(stats.bwa %l% 4))
 
@@ -71,7 +57,7 @@ names(map.bwa) <- c("mapped")
 map.bt$method = method.bt
 map.bwa$method = method.bwa
 
-# Comparing %mapped between bowtie and bwa
+# Comparing %mapped between each reference
 map.cod <- data.frame(unname(stats.cod %l% 4))
 map.bb <- data.frame(unname(stats.bb %l% 4))
 
@@ -81,15 +67,24 @@ names(map.bb) <- c("mapped")
 map.cod$reference = ref.cod
 map.bb$reference = ref.bb
 
+# Built the plots
+
 # Stacked histograms of each comparison
 hista <- ggplot(rbind(map.bt, map.bwa), aes(mapped, fill = method)) +
-  geom_histogram(binwidth = 1)
+  geom_histogram(binwidth = 1) +
+  ylab("Frequency") +
+  xlab("% Mapped") +
+  ggtitle("A.") +
+  labs(fill = 'Alignment Method')
 
 histb <- ggplot(rbind(map.cod, map.bb), aes(mapped, fill = reference)) +
-  geom_histogram(binwidth = 1)
+  geom_histogram(binwidth = 1) +
+  ylab("Frequency") +
+  xlab("% Mapped") +
+  ggtitle("B.") +
+  labs(fill = 'Reference Genome')
 
-
-# Violin plot showing differences between each sample. Split between reference, and method. Y axis logged to normalize range.
+# Violin plots showing differences between each sample. Split between reference, and method. Y axis logged to normalize range.
 
 # bwa/burbot
 pa <- ggplot(t_ggp(stats.bwa.bb), aes(x = seq, y = log(map), color = seq)) +
@@ -125,7 +120,20 @@ pd <- ggplot(t_ggp(stats.bt.cod), aes(x = seq, y = log(map), color = seq)) +
 
 # Arrange plots in grid with common legend and axis
 vgrid <- ggarrange(pa + theme(axis.title.x = element_blank()),
-          pb + theme(axis.title.x = element_blank(), axis.title.y = element_blank()),
-          pc,
-          pd + theme(axis.title.y = element_blank()),
-          ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom")
+                   pb + theme(axis.title.x = element_blank(), axis.title.y = element_blank()),
+                   pc,
+                   pd + theme(axis.title.y = element_blank()),
+                   ncol = 2, nrow = 2, common.legend = TRUE, legend = "bottom")
+
+
+t.test(as.vector(stats.bwa %l% 4), as.vector(stats.bt %l% 4))
+t.test(as.vector(stats.bb %l% 4), as.vector(stats.cod %l% 4))
+
+df.summ <- do.call(rbind.data.frame, list(
+  bwa = summary(as.vector(stats.bwa %l% 4)),
+  bowtie2 = summary(as.vector(stats.bt %l% 4)),
+  cod = summary(as.vector(stats.cod %l% 4)),
+  burbot = summary(as.vector(stats.bb %l% 4))
+))
+row.names(df.summ) <- c("bwa", "bowtie2", "cod", "burbot")
+names(df.summ) <- c("Min", "1st Qu.", "Median", "Mean", "3rd Qu.", "Max")
